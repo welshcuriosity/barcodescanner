@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PWA Offline Barcode Scanner</title>
+  <link rel="manifest" href="manifest.json">
+  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+  <style>
+    body { 
+      font-family: system-ui, -apple-system, sans-serif; 
+      text-align: center; 
+      padding: 20px; 
+      margin: 0; 
+      background-color: #f4f4f9; 
+    }
+    h1 { font-size: 24px; color: #333; margin-bottom: 5px; }
+    .card { 
+      background: #fff; 
+      padding: 20px; 
+      border-radius: 8px; 
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
+      margin-bottom: 20px; 
+      max-width: 500px; 
+      margin-left: auto; 
+      margin-right: auto; 
+    }
+    input[type="text"] { 
+      width: 90%; 
+      padding: 10px; 
+      margin-bottom: 10px; 
+      border: 1px solid #ccc; 
+      border-radius: 4px; 
+      box-sizing: border-box;
+    }
+    button { 
+      padding: 12px 24px; 
+      font-size: 16px; 
+      margin: 10px 0; 
+      background-color: #007bff; 
+      color: white; 
+      border: none; 
+      border-radius: 8px; 
+      cursor: pointer; 
+      width: 100%; 
+      max-width: 300px; 
+    }
+    button:active { background-color: #0056b3; }
+    .btn-secondary { background-color: #28a745; }
+    .btn-secondary:active { background-color: #1e7e34; }
+    #reader { width: 100%; overflow: hidden; border-radius: 8px; display: none; }
+    #result { text-align: left; display: none; margin-top: 15px;}
+    #load-status { font-size: 14px; font-weight: bold; margin-top: 10px; }
+    ul { list-style-type: none; padding: 0; }
+    li { padding: 8px 0; border-bottom: 1px solid #eee; }
+  </style>
+</head>
+<body>
+
+  <h1>Offline Scanner</h1>
+
+  <div class="card" id="setup-section">
+    <h3>1. Load Data</h3>
+    <input type="text" id="data-url" placeholder="URL of HTML page" value="data-table.html">
+    <button id="load-data" class="btn-secondary">Download & Save Offline</button>
+    <div id="load-status"></div>
+  </div>
+
+  <div class="card" id="scan-section">
+    <h3>2. Scan Barcode</h3>
+    <button id="start-scan">Start Scanner</button>
+    <div id="reader"></div>
+    <div id="result"></div>
+  </div>
+
+  <script>
+    // 1. Register Service Worker for PWA
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js').catch(console.error);
+    }
+
+    // --- DATA LOADING LOGIC ---
+    const loadBtn = document.getElementById('load-data');
+    const urlInput = document.getElementById('data-url');
+    const loadStatus = document.getElementById('load-status');
+
+    loadBtn.addEventListener('click', async () => {
+      loadStatus.style.color = "#333";
+      loadStatus.innerText = "Fetching and parsing data...";
+      
+      try {
+        const response = await fetch(urlInput.value);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const htmlString = await response.text();
+
+        // Parse HTML
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(htmlString, 'text/html');
+        const rows = doc.querySelectorAll('table tr');
+        
+        const offlineData = {};
+        let count = 0;
+
+        // Loop through rows and build a JSON object
+        for (const row of rows) {
+          const cells = row.querySelectorAll('td');
+          if (cells.length === 0) continue; // Skip headers or empty rows
+
+          // Assumption: Barcode is in the first column
+          const barcode = cells[0].textContent.trim();
+          const rowData = [];
+          
+          // Store the remaining columns in an array
+          for (let i = 1; i < cells.length; i++) {
+            rowData.push(cells[i].textContent.trim());
+          }
+          
+          offlineData[barcode] = rowData;
+          count++;
+        }
+
+        // Save to LocalStorage
+        localStorage.setItem('offlineBarcodeData', JSON.stringify(offlineData));
+        
+        loadStatus.style.color = "green";
+        loadStatus.innerText = `Success! Saved ${count} items to offline storage.`;
+      } catch (error) {
+        loadStatus.style.color = "red";
+        loadStatus.innerText = `Error loading data: ${error.message}`;
+      }
+    });
+
+    // --- SCANNING LOGIC ---
+    const startBtn = document.getElementById('start-scan');
+    const readerDiv = document.getElementById('reader');
+    const resultDiv = document.getElementById('result');
+    let html5QrcodeScanner;
+
+    startBtn.addEventListener('click', () => {
+      readerDiv.style.display = 'block';
+      resultDiv.style.display = 'none';
+      startBtn.style.display = 'none';
+
+      html5QrcodeScanner = new Html5QrcodeScanner(
+        "reader", 
+        { fps: 10, qrbox: { width: 250, height: 250 } }, 
+        false
+      );
+      html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+    });
+
+    function onScanSuccess(decodedText) {
+      // Stop scanner and update UI
+      html5QrcodeScanner.clear();
+      readerDiv.style.display = 'none';
+      startBtn.style.display = 'inline-block';
+      startBtn.innerText = "Scan Another Code";
+
+      resultDiv.style.display = 'block';
+      resultDiv.innerHTML = `<p><strong>Scanned Barcode:</strong> ${decodedText}</p>`;
+
+      // Retrieve data from LocalStorage
+      const savedDataString = localStorage.getItem('offlineBarcodeData');
+      
+      if (!savedDataString) {
+        resultDiv.innerHTML += `<p style="color: red;">No offline data found. Please load the data first.</p>`;
+        return;
+      }
+
+      const offlineData = JSON.parse(savedDataString);
+
+      // Check if the barcode exists in our saved data
+      if (offlineData[decodedText]) {
+        const rowData = offlineData[decodedText];
+        
+        let rowHTML = '<ul>';
+        // Display the stored columns (index + 2 because col 1 is the barcode)
+        rowData.forEach((dataValue, index) => {
+          rowHTML += `<li><strong>Column ${index + 2}:</strong> ${dataValue}</li>`;
+        });
+        rowHTML += '</ul>';
+
+        resultDiv.innerHTML += `
+          <p><strong>Offline Match Found:</strong></p>
+          ${rowHTML}
+        `;
+      } else {
+        resultDiv.innerHTML += `<p style="color: red;">Barcode not found in offline database.</p>`;
+      }
+    }
+
+    function onScanFailure(error) {
+      // Suppress continuous failure logging to keep the console clean
+    }
+  </script>
+</body>
+</html>
