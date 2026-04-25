@@ -138,6 +138,7 @@
       else if (decodedText.startsWith('0')) {
         // Swap leading '0' with '1'
         const alternateBarcode = decodedText.substring(1);
+        resultDiv.innerHTML += `<p><em>Alt barcode ${alternateBarcode}</em></p>`
         
         // Try looking up the new barcode
         if (offlineData[alternateBarcode]) {
