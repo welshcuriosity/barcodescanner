@@ -50,8 +50,11 @@
     const loadStatus = document.getElementById('load-status');
 
     loadBtn.addEventListener('click', async () => {
+      // --- NEW: Clear the old data before fetching the new data ---
+      localStorage.removeItem('offlineBarcodeData');
+      
       loadStatus.style.color = "#333";
-      loadStatus.innerText = "Fetching and parsing data...";
+      loadStatus.innerText = "Clearing old cache and fetching new data...";
       
       try {
         const response = await fetch(urlInput.value);
@@ -102,7 +105,7 @@
 
       html5QrcodeScanner = new Html5QrcodeScanner(
         "reader", 
-        { fps: 15, qrbox: { width: 450, height: 450 } }, 
+        { fps: 10, qrbox: { width: 250, height: 250 } }, 
         false
       );
       html5QrcodeScanner.render(onScanSuccess, onScanFailure);
@@ -134,14 +137,14 @@
         matchFound = true;
       } 
       // 2. If no exact match, check if it starts with '0'
-      else if (decodedText.startsWith('0')) {
+      else {
         // Swap leading '0' with '1'
         const alternateBarcode = decodedText.substring(1);
         
         if (offlineData[alternateBarcode]) {
           matchFound = true;
           matchedBarcode = alternateBarcode;
-          resultDiv.innerHTML += `<p><em>Note: Match found by dropping leading 0.</em></p>`;
+          resultDiv.innerHTML += `<p><em>Note: Match found by dropping leading first digit</em></p>`;
         }
       }
 
@@ -149,8 +152,6 @@
       if (matchFound) {
         const rowData = offlineData[matchedBarcode];
         
-        // Grab the specific indices for SKU (0) and Description (1)
-        // We use || 'N/A' just in case a row on the webpage is missing a column
         const sku = rowData[0] || 'N/A';
         const description = rowData[1] || 'N/A';
         
