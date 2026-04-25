@@ -1,6 +1,6 @@
 {
   "name": "Offline Barcode Scanner",
-  "short_name": "Scanner",
+  "short_name": "Barcode Scanner",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#f4f4f9",
