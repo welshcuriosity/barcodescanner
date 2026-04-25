@@ -135,10 +135,10 @@
         matchFound = true;
       } 
       // 2. If no exact match, check if it starts with '0'
-      else if (decodedText.startsWith('0')) {
+      else {
         // Swap leading '0' with '1'
         const alternateBarcode = decodedText.substring(1);
-        resultDiv.innerHTML += `<p><em>Alt barcode ${alternateBarcode}</em></p>`
+        resultDiv.innerHTML = `<p><strong>Scanned Barcode:</strong> ${alternateBarcode}</p>`;
         
         // Try looking up the new barcode
         if (offlineData[alternateBarcode]) {
