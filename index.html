@@ -158,7 +158,6 @@
         
         const sku = rowData[0] || 'N/A';
         const description = rowData[1] || 'N/A';
-
         const packsize = rowData[2] || 'N/A';
         const category = rowData[3] || 'N/A';
         
@@ -166,13 +165,13 @@
           <ul>
             <li><strong>SKU:</strong> ${sku}</li>
             <li><strong>Description:</strong> ${description}</li>
-            <li><strong>Description:</strong> ${packsize}</li>
-            <li><strong>Description:</strong> ${category}</li>
+            <li><strong>Pack size:</strong> ${packsize}</li>
+            <li><strong>Category:</strong> ${category}</li>
           </ul>
         `;
 
         resultDiv.innerHTML += `
-          <p><strong>Offline Match Found:</strong></p>
+          <p><strong>Match Found:</strong></p>
           ${rowHTML}
         `;
       } else {
