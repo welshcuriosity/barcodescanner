@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PWA Offline Barcode Scanner</title>
+  <title>PWA Offline Barcode Scanner v3</title>
   <link rel="manifest" href="manifest.json">
   <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
   <style>
@@ -137,13 +137,13 @@
       // 2. If no exact match, check if it starts with '0'
       else if (decodedText.startsWith('0')) {
         // Swap leading '0' with '1'
-        const alternateBarcode = '1' + decodedText.substring(1);
+        const alternateBarcode = decodedText.substring(1);
         
         // Try looking up the new barcode
         if (offlineData[alternateBarcode]) {
           matchFound = true;
           matchedBarcode = alternateBarcode;
-          resultDiv.innerHTML += `<p><em>Note: Match found by converting leading 0 to 1.</em></p>`;
+          resultDiv.innerHTML += `<p><em>Note: Match found by dropping leading 0</em></p>`;
         }
       }
 
