@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PWA Offline Barcode Scanner v3</title>
+  <title>PWA Offline Barcode Scanner</title>
   <link rel="manifest" href="manifest.json">
   <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
   <style>
@@ -24,7 +24,7 @@
 </head>
 <body>
 
-  <h1>Offline Scanner v3</h1>
+  <h1>Offline Scanner</h1>
 
   <div class="card" id="setup-section">
     <h3>1. Load Data</h3>
@@ -126,7 +126,6 @@
 
       const offlineData = JSON.parse(savedDataString);
 
-      // --- UPDATED LOOKUP LOGIC ---
       let matchFound = false;
       let matchedBarcode = decodedText;
 
@@ -135,28 +134,32 @@
         matchFound = true;
       } 
       // 2. If no exact match, check if it starts with '0'
-      else {
+      else if (decodedText.startsWith('0')) {
         // Swap leading '0' with '1'
-        const alternateBarcode = decodedText.substring(1);
-        resultDiv.innerHTML = `<p><strong>Scanned Barcode:</strong> ${alternateBarcode}</p>`;
+        const alternateBarcode = '1' + decodedText.substring(1);
         
-        // Try looking up the new barcode
         if (offlineData[alternateBarcode]) {
           matchFound = true;
           matchedBarcode = alternateBarcode;
-          resultDiv.innerHTML += `<p><em>Note: Match found by dropping leading 0</em></p>`;
+          resultDiv.innerHTML += `<p><em>Note: Match found by converting leading 0 to 1.</em></p>`;
         }
       }
 
-      // 3. Display the results
+      // 3. Display the results with specific labels
       if (matchFound) {
         const rowData = offlineData[matchedBarcode];
         
-        let rowHTML = '<ul>';
-        rowData.forEach((dataValue, index) => {
-          rowHTML += `<li><strong>Column ${index + 2}:</strong> ${dataValue}</li>`;
-        });
-        rowHTML += '</ul>';
+        // Grab the specific indices for SKU (0) and Description (1)
+        // We use || 'N/A' just in case a row on the webpage is missing a column
+        const sku = rowData[0] || 'N/A';
+        const description = rowData[1] || 'N/A';
+        
+        let rowHTML = `
+          <ul>
+            <li><strong>SKU:</strong> ${sku}</li>
+            <li><strong>Description:</strong> ${description}</li>
+          </ul>
+        `;
 
         resultDiv.innerHTML += `
           <p><strong>Offline Match Found:</strong></p>
