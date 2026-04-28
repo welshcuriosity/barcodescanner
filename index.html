@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Offline Barcode Scanner</title>
+  <title>PWA Offline Barcode Scanner</title>
   <link rel="manifest" href="manifest.json">
   <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
   <style>
@@ -18,13 +18,14 @@
     #reader { width: 100%; overflow: hidden; border-radius: 8px; display: none; }
     #result { text-align: left; display: none; margin-top: 15px;}
     #load-status { font-size: 14px; font-weight: bold; margin-top: 10px; }
+    .warning { color: #dc3545; background-color: #f8d7da; border: 1px solid #f5c6cb; padding: 10px; border-radius: 4px; margin-top: 10px; }
     ul { list-style-type: none; padding: 0; }
     li { padding: 8px 0; border-bottom: 1px solid #eee; }
   </style>
 </head>
 <body>
 
-  <h1>Offline Barcode Scanner</h1>
+  <h1>Offline Scanner</h1>
 
   <div class="card" id="setup-section">
     <h3>1. Load Data</h3>
@@ -45,7 +46,7 @@
       navigator.serviceWorker.register('sw.js').catch(console.error);
     }
 
-    // --- INDEXED DB WRAPPER (Replaces localStorage) ---
+    // --- INDEXED DB WRAPPER ---
     const DB_NAME = 'ScannerDatabase';
     const STORE_NAME = 'ScannerStorage';
 
@@ -91,16 +92,47 @@
     }
     // --------------------------------------------------
 
+    // --- EXPIRY CHECK LOGIC ---
+    async function checkDataAge() {
+      const loadStatus = document.getElementById('load-status');
+      try {
+        const lastRefresh = await getItemDB('lastRefreshTime');
+        
+        if (lastRefresh) {
+          const now = Date.now();
+          const twentyFourHours = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+          
+          if (now - lastRefresh > twentyFourHours) {
+            // Data is too old. Clear it and warn the user.
+            await clearDB();
+            loadStatus.innerHTML = `<div class="warning">⚠️ Stored data was over 24 hours old and has been cleared to prevent errors. Please download fresh data.</div>`;
+          } else {
+            // Data is still valid. Give a helpful status update.
+            const hoursOld = Math.floor((now - lastRefresh) / (1000 * 60 * 60));
+            const minutesOld = Math.floor(((now - lastRefresh) % (1000 * 60 * 60)) / (1000 * 60));
+            loadStatus.style.color = "green";
+            loadStatus.innerText = `Using offline data loaded ${hoursOld}h ${minutesOld}m ago.`;
+          }
+        }
+      } catch (error) {
+        console.error("Error checking data age:", error);
+      }
+    }
+
+    // Run the expiry check immediately when the app opens
+    window.addEventListener('DOMContentLoaded', checkDataAge);
+    // --------------------------------------------------
+
     const loadBtn = document.getElementById('load-data');
     const urlInput = document.getElementById('data-url');
     const loadStatus = document.getElementById('load-status');
 
     loadBtn.addEventListener('click', async () => {
-      // Clear old database entries
       await clearDB();
       
+      loadStatus.className = ""; // Remove any warning classes
       loadStatus.style.color = "#333";
-      loadStatus.innerText = "Clearing old cache and fetching new data...";
+      loadStatus.innerText = "Fetching and parsing new data...";
       
       try {
         const response = await fetch(urlInput.value);
@@ -137,12 +169,13 @@
           count++;
         }
 
-        // Save directly to IndexedDB (No JSON.stringify needed!)
+        // Save data, headers, AND the current timestamp
         await setItemDB('offlineBarcodeData', offlineData);
         await setItemDB('offlineHeaders', headers);
+        await setItemDB('lastRefreshTime', Date.now());
         
         loadStatus.style.color = "green";
-        loadStatus.innerText = `Success! Saved ${count} items to IndexedDB.`;
+        loadStatus.innerText = `Success! Saved ${count} items. Valid for 24 hours.`;
       } catch (error) {
         loadStatus.style.color = "red";
         loadStatus.innerText = `Error loading data: ${error.message}`;
@@ -161,13 +194,12 @@
 
       html5QrcodeScanner = new Html5QrcodeScanner(
         "reader", 
-        { fps: 25, qrbox: { width: 350, height: 350 } }, 
+        { fps: 10, qrbox: { width: 250, height: 250 } }, 
         false
       );
       html5QrcodeScanner.render(onScanSuccess, onScanFailure);
     });
 
-    // Note: This function is now 'async' so it can wait for the database
     async function onScanSuccess(decodedText) {
       html5QrcodeScanner.clear();
       readerDiv.style.display = 'none';
@@ -177,7 +209,6 @@
       resultDiv.style.display = 'block';
       resultDiv.innerHTML = `<p><strong>Scanned Barcode:</strong> ${decodedText}</p>`;
 
-      // Pull from IndexedDB (No JSON.parse needed!)
       const offlineData = await getItemDB('offlineBarcodeData');
       const headers = await getItemDB('offlineHeaders') || [];
       
@@ -196,7 +227,7 @@
         if (offlineData[alternateBarcode]) {
           matchFound = true;
           matchedBarcode = alternateBarcode;
-          resultDiv.innerHTML += `<p><em>Note: Match found by dropping leading 0 </em></p>`;
+          resultDiv.innerHTML += `<p><em>Note: Match found by dropping leading 0</em></p>`;
         }
       }
 
